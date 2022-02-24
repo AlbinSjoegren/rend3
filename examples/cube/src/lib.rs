@@ -86,7 +86,10 @@ impl rend3_framework::App for CubeExample {
 
         // Add PBR material with all defaults except a single color.
         let material = rend3_routine::pbr::PbrMaterial {
-            albedo: rend3_routine::pbr::AlbedoComponent::Value(glam::Vec4::new(0.0, 0.5, 0.5, 1.0)),
+            albedo: rend3_routine::pbr::AlbedoComponent::Value(glam::Vec4::new(0.0, 0.0, 1.0, 1.0)),
+            emissive: rend3_routine::pbr::MaterialComponent::Value(glam::Vec3::new(
+                1.0, 1.0, 1.0,
+            )),
             ..rend3_routine::pbr::PbrMaterial::default()
         };
         let material_handle = renderer.add_material(material);
@@ -120,7 +123,7 @@ impl rend3_framework::App for CubeExample {
             color: glam::Vec3::ONE,
             intensity: 10.0,
             // Direction will be normalized
-            direction: glam::Vec3::new(-1.0, -4.0, 2.0),
+            direction: glam::Vec3::new(1.0, -4.0, 2.0),
             distance: 400.0,
         }));
     }
@@ -172,7 +175,7 @@ impl rend3_framework::App for CubeExample {
                     &tonemapping_routine,
                     resolution,
                     SAMPLE_COUNT,
-                    glam::Vec4::ZERO,
+                    glam::Vec4::splat(1.0),
                 );
 
                 // Dispatch a render using the built up rendergraph!
