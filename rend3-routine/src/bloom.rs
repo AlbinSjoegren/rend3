@@ -5,6 +5,7 @@ pub fn bloom(
         width: u32, 
         height: u32, 
         surface_texture: wgpu::SurfaceTexture, 
+        steps: u32,
 ) -> wgpu::Texture {
         let device = &renderer.device;
         let queue = &renderer.queue;
@@ -32,6 +33,23 @@ pub fn bloom(
                 usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
                 label: Some("bloom_texture"),
         });
+
+
+        let downscaliong_vec = vec![];
+
+        let steps = 8;
+
+        for i in 1..steps {
+                let lable = format!("{}", i);
+                let texture_downscale = rend3::types::TextureFromTexture {
+                        lable: Some(lable),
+                        src: texture,
+                        start_mip: i,
+                        mip_count: Some(9 - i)
+                };
+                downscaliong_vec.push(texture_downscale)
+        }
+        
 
         return texture;
 }
