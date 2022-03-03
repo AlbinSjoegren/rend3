@@ -35,20 +35,38 @@ pub fn bloom(
         });
 
 
-        let downscaliong_vec = vec![];
+        let downscale_vec = vec![];
 
-        let steps = 8;
+        let steps = steps + 1;
 
-        for i in 1..steps {
+        for i in 0..steps {
                 let lable = format!("{}", i);
                 let texture_downscale = rend3::types::TextureFromTexture {
                         lable: Some(lable),
                         src: texture,
                         start_mip: i,
-                        mip_count: Some(9 - i)
+                        mip_count: 0
                 };
-                downscaliong_vec.push(texture_downscale)
+                downscale_vec.push(texture_downscale)
         }
+
+        let mut downscale_vec_new = downscale_vec.clone();
+
+        let mut upscale_vec = vec![];
+        
+        for i in -1..-steps {
+                let lable = format!("{}", i);
+                let mut texture_up = downscale_vec_new.pop();
+                let texture_upscale = rend3::types::TextureFromTexture {
+                        lable: Some(lable),
+                        src: texture_up,
+                        start_mip: -1,
+                        mip_count: 0
+                };
+                upscale_vec.push(texture_upscale);
+        }
+        
+
         
 
         return texture;
