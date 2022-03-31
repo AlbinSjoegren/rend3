@@ -1,4 +1,4 @@
-use glam::{DVec2, Mat3A, Mat4, UVec2, Vec3, Vec3A};
+use glam::{DVec2, Mat3A, Mat4, Quat, UVec2, Vec3, Vec3A};
 use instant::Instant;
 use pico_args::Arguments;
 use rend3::{
@@ -261,9 +261,20 @@ struct SceneViewer {
 
     fullscreen: bool,
 
+    set_camera: bool,
+
+    forward: Vec3A,
+    side: Vec3A,
+    up: Vec3A,
+
+    view: Mat4,
+
+    quat_rotation: Quat,
+
     scancode_status: FastHashMap<u32, bool>,
     camera_pitch: f32,
     camera_yaw: f32,
+    camera_roll: f32,
     camera_location: Vec3A,
     previous_profiling_stats: Option<Vec<GpuTimerScopeResult>>,
     timestamp_last_second: Instant,
@@ -358,9 +369,20 @@ impl SceneViewer {
 
             fullscreen,
 
+            set_camera: false,
+
+            forward: -Vec3A::Z,
+            side: Vec3A::X,
+            up: Vec3A::Y,
+
+            view: Mat4::IDENTITY,
+
+            quat_rotation: Quat::IDENTITY,
+
             scancode_status: FastHashMap::default(),
             camera_pitch: -std::f32::consts::FRAC_PI_8,
             camera_yaw: std::f32::consts::FRAC_PI_4,
+            camera_roll: 0.,
             camera_location: Vec3A::new(3.0, 3.0, 3.0),
             previous_profiling_stats: None,
             timestamp_last_second: Instant::now(),
@@ -495,33 +517,66 @@ impl rend3_framework::App for SceneViewer {
 
                 self.timestamp_last_frame = now;
 
-                let rotation =
-                    Mat3A::from_euler(glam::EulerRot::XYZ, -self.camera_pitch, -self.camera_yaw, 0.0).transpose();
-                let forward = -rotation.z_axis;
-                let up = rotation.y_axis;
-                let side = -rotation.x_axis;
+                if self.set_camera == false {
+                    //Normal Camera
+                    let rotation =
+                        Mat3A::from_euler(glam::EulerRot::XYZ, -self.camera_pitch, -self.camera_yaw, 0.0).transpose();
+                    self.forward = -rotation.z_axis;
+                    self.up = rotation.y_axis;
+                    self.side = -rotation.x_axis;
+                } else if self.set_camera == true {
+                    //Spaceship Camera
+                    let quaternion_new = Quat::from_euler(
+                        glam::EulerRot::YXZ,
+                        self.camera_yaw,
+                        self.camera_pitch,
+                        self.camera_roll,
+                    );
+                    
+                    self.camera_yaw = 0.;
+                    self.camera_pitch = 0.;
+                    self.camera_roll = 0.;
+
+                    self.quat_rotation = Quat::mul_quat(quaternion_new, self.quat_rotation).normalize();
+                    
+
+                    self.side = -Quat::mul_vec3a(self.quat_rotation.inverse(), Vec3A::X);
+                    self.up = Quat::mul_vec3a(self.quat_rotation.inverse(), Vec3A::Y);
+                    self.forward = -Quat::mul_vec3a(self.quat_rotation.inverse(), Vec3A::Z);
+                }
+
                 let velocity = if button_pressed(&self.scancode_status, platform::Scancodes::SHIFT) {
                     self.run_speed
                 } else {
                     self.walk_speed
                 };
                 if button_pressed(&self.scancode_status, platform::Scancodes::W) {
-                    self.camera_location += forward * velocity * delta_time.as_secs_f32();
+                    self.camera_location += self.forward * velocity * delta_time.as_secs_f32();
                 }
                 if button_pressed(&self.scancode_status, platform::Scancodes::S) {
-                    self.camera_location -= forward * velocity * delta_time.as_secs_f32();
+                    self.camera_location -= self.forward * velocity * delta_time.as_secs_f32();
                 }
                 if button_pressed(&self.scancode_status, platform::Scancodes::A) {
-                    self.camera_location += side * velocity * delta_time.as_secs_f32();
+                    self.camera_location += self.side * velocity * delta_time.as_secs_f32();
                 }
                 if button_pressed(&self.scancode_status, platform::Scancodes::D) {
-                    self.camera_location -= side * velocity * delta_time.as_secs_f32();
+                    self.camera_location -= self.side * velocity * delta_time.as_secs_f32();
                 }
-                if button_pressed(&self.scancode_status, platform::Scancodes::Q) {
-                    self.camera_location += up * velocity * delta_time.as_secs_f32();
+                if button_pressed(&self.scancode_status, platform::Scancodes::SPACE) {
+                    self.camera_location += self.up * velocity * delta_time.as_secs_f32();
                 }
                 if button_pressed(&self.scancode_status, platform::Scancodes::Z) {
-                    self.camera_location -= up * velocity * delta_time.as_secs_f32();
+                    self.camera_location -= self.up * velocity * delta_time.as_secs_f32();
+                }
+                if button_pressed(&self.scancode_status, platform::Scancodes::Q) {
+                    self.camera_roll -= 1. * delta_time.as_secs_f32();
+                }
+                if button_pressed(&self.scancode_status, platform::Scancodes::E) {
+                    self.camera_roll += 1. * delta_time.as_secs_f32();
+                }
+
+                if button_pressed(&self.scancode_status, platform::Scancodes::CTRL) {
+                    self.set_camera = true;
                 }
 
                 if button_pressed(&self.scancode_status, platform::Scancodes::ESCAPE) {
@@ -541,8 +596,17 @@ impl rend3_framework::App for SceneViewer {
                 window.request_redraw()
             }
             Event::RedrawRequested(_) => {
-                let view = Mat4::from_euler(glam::EulerRot::XYZ, -self.camera_pitch, -self.camera_yaw, 0.0);
-                let view = view * Mat4::from_translation((-self.camera_location).into());
+                if self.set_camera == false {
+                    //Normal Camera
+                    self.view = Mat4::from_euler(glam::EulerRot::XYZ, -self.camera_pitch, -self.camera_yaw, 0.0);
+                } else if self.set_camera == true {
+                    //Spaceship Camera
+                    self.view = Mat4::from_quat(self.quat_rotation);
+                }
+
+                self.view = self.view * Mat4::from_translation((-self.camera_location).into());
+
+                let view = self.view;
 
                 renderer.set_camera_data(Camera {
                     projection: CameraProjection::Perspective { vfov: 60.0, near: 0.1 },
@@ -636,30 +700,36 @@ impl rend3_framework::App for SceneViewer {
                     return;
                 }
 
-                const TAU: f32 = std::f32::consts::PI * 2.0;
+                if self.set_camera == false {
+                    const TAU: f32 = std::f32::consts::PI * 2.0;
 
-                let mouse_delta = if self.absolute_mouse {
-                    let prev = self.last_mouse_delta.replace(DVec2::new(delta_x, delta_y));
-                    if let Some(prev) = prev {
-                        (DVec2::new(delta_x, delta_y) - prev) / 4.0
+                    let mouse_delta = if self.absolute_mouse {
+                        let prev = self.last_mouse_delta.replace(DVec2::new(delta_x, delta_y));
+                        if let Some(prev) = prev {
+                            (DVec2::new(delta_x, delta_y) - prev) / 4.0
+                        } else {
+                            return;
+                        }
                     } else {
-                        return;
-                    }
-                } else {
-                    DVec2::new(delta_x, delta_y)
-                };
+                        DVec2::new(delta_x, delta_y)
+                    };
 
-                self.camera_yaw -= (mouse_delta.x / 1000.0) as f32;
-                self.camera_pitch -= (mouse_delta.y / 1000.0) as f32;
-                if self.camera_yaw < 0.0 {
-                    self.camera_yaw += TAU;
-                } else if self.camera_yaw >= TAU {
-                    self.camera_yaw -= TAU;
+                    self.camera_yaw -= (mouse_delta.x / 1000.0) as f32;
+                    self.camera_pitch -= (mouse_delta.y / 1000.0) as f32;
+                    if self.camera_yaw < 0.0 {
+                        self.camera_yaw += TAU;
+                    } else if self.camera_yaw >= TAU {
+                        self.camera_yaw -= TAU;
+                    }
+                    self.camera_pitch = self
+                        .camera_pitch
+                        .max(-std::f32::consts::FRAC_PI_2 + 0.0001)
+                        .min(std::f32::consts::FRAC_PI_2 - 0.0001);
+                } else if self.set_camera == true {
+                    let mouse_delta = DVec2::new(delta_x, delta_y);
+                    self.camera_yaw += (mouse_delta.x / 1000.0) as f32;
+                    self.camera_pitch += (mouse_delta.y / 1000.0) as f32;
                 }
-                self.camera_pitch = self
-                    .camera_pitch
-                    .max(-std::f32::consts::FRAC_PI_2 + 0.0001)
-                    .min(std::f32::consts::FRAC_PI_2 - 0.0001);
             }
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
