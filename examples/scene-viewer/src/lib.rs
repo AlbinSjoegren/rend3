@@ -527,6 +527,39 @@ impl rend3_framework::App for SceneViewer {
                 } else if self.set_camera == true {
                     // Spaceship Camera
 
+                    let sin_alpha = ((-self.camera_yaw) / 2.).sin();
+                    let cos_alpha = ((-self.camera_yaw) / 2.).cos();
+                    let sin_beta = (self.camera_roll / 2.).sin();
+                    let cos_beta = (self.camera_roll / 2.).cos();
+                    let sin_gamma = ((-self.camera_pitch) / 2.).sin(); 
+                    let cos_gamma = ((-self.camera_pitch) / 2.).cos(); 
+
+                    let q0 = (cos_alpha * cos_beta * cos_gamma) + (sin_alpha * sin_beta * sin_gamma);
+                    let q1 = (cos_alpha * cos_beta * sin_gamma) - (sin_alpha * sin_beta * cos_gamma);
+                    let q2 = (cos_alpha * sin_beta * cos_gamma) + (sin_alpha * cos_beta * sin_gamma);
+                    let q3 = (sin_alpha * cos_beta * cos_gamma) - (cos_alpha * sin_beta * sin_gamma);
+
+                    let delta = q0.acos() * 2.;
+
+                    let v = Vec3A::new(q1, q2, q3);
+
+                    let alt_sin_alpha = (Vec3A::angle_between(v, Vec3A::X)).sin();
+                    let alt_cos_alpha = (Vec3A::angle_between(v, Vec3A::X)).cos();
+                    let alt_sin_beta = (Vec3A::angle_between(v, Vec3A::Y)).sin();
+                    let alt_cos_beta = (Vec3A::angle_between(v, Vec3A::Y)).cos();
+                    let alt_sin_gamma = (Vec3A::angle_between(v, Vec3A::Z)).sin();
+                    let alt_cos_gamma = (Vec3A::angle_between(v, Vec3A::Z)).cos();
+
+                    let a = alt_cos_alpha * v;
+                    let b = alt_cos_beta * v;
+                    let c = alt_cos_gamma * v;
+
+                    self.forward = a + (alt_sin_alpha * Vec3A::X);
+                    self.side = b + (alt_sin_beta * Vec3A::Y);
+                    self.up = c + (alt_sin_gamma * Vec3A::Z);
+
+                    /*
+
                     let sin_yaw = (-self.camera_yaw).sin();
                     let cos_yaw = (-self.camera_yaw).cos();
                     let sin_roll = (-self.camera_pitch).sin();
@@ -551,6 +584,7 @@ impl rend3_framework::App for SceneViewer {
                     self.forward = self.matrix_rotation.x_axis;
                     self.up = -self.matrix_rotation.z_axis;
                     self.side = self.matrix_rotation.y_axis;
+                    */
                 }
 
                 let velocity = if button_pressed(&self.scancode_status, platform::Scancodes::SHIFT) {
@@ -610,9 +644,9 @@ impl rend3_framework::App for SceneViewer {
                 } else if self.set_camera == true {
                     // Spaceship Camera
                     self.view = Mat4::from_cols(
-                        Vec3A::extend(self.matrix_rotation.y_axis, 0.),
-                        Vec3A::extend(self.matrix_rotation.z_axis, 0.),
-                        Vec3A::extend(self.matrix_rotation.x_axis, 0.),
+                        Vec3A::extend(self.side, 0.),
+                        Vec3A::extend(self.up, 0.),
+                        Vec3A::extend(self.forward, 0.),
                         Vec4::W,
                     );
                 }
