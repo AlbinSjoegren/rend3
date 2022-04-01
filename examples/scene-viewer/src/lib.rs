@@ -1,4 +1,4 @@
-use glam::{DVec2, Mat3A, Mat4, UVec2, Vec3, Vec3A};
+use glam::{DVec2, Mat3A, Mat4, UVec2, Vec3, Vec3A, Vec4};
 use instant::Instant;
 use pico_args::Arguments;
 use rend3::{
@@ -518,21 +518,21 @@ impl rend3_framework::App for SceneViewer {
                 self.timestamp_last_frame = now;
 
                 if self.set_camera == false {
-                    //Normal Camera
+                    // Normal Camera
                     let rotation =
                         Mat3A::from_euler(glam::EulerRot::XYZ, -self.camera_pitch, -self.camera_yaw, 0.0).transpose();
                     self.forward = -rotation.z_axis;
                     self.up = rotation.y_axis;
                     self.side = -rotation.x_axis;
                 } else if self.set_camera == true {
-                    //Spaceship Camera
+                    // Spaceship Camera
 
-                    let sin_pitch = (-self.camera_yaw).sin();
-                    let cos_pitch = (-self.camera_yaw).cos();
+                    let sin_yaw = (-self.camera_yaw).sin();
+                    let cos_yaw = (-self.camera_yaw).cos();
                     let sin_roll = (-self.camera_pitch).sin();
                     let cos_roll = (-self.camera_pitch).cos();
-                    let sin_yaw = self.camera_roll.sin();
-                    let cos_yaw = self.camera_roll.cos();
+                    let sin_pitch = self.camera_roll.sin();
+                    let cos_pitch = self.camera_roll.cos();
 
                     self.matrix_rotation = Mat3A::from_cols(
                         Vec3A::new(
@@ -551,26 +551,6 @@ impl rend3_framework::App for SceneViewer {
                     self.forward = self.matrix_rotation.x_axis;
                     self.up = -self.matrix_rotation.z_axis;
                     self.side = self.matrix_rotation.y_axis;
-
-                    /*
-                    let quaternion_new = Quat::from_euler(
-                        glam::EulerRot::YXZ,
-                        self.camera_yaw,
-                        self.camera_pitch,
-                        self.camera_roll,
-                    );
-
-                    self.camera_yaw = 0.;
-                    self.camera_pitch = 0.;
-                    self.camera_roll = 0.;
-
-                    self.quat_rotation = Quat::mul_quat(quaternion_new, self.quat_rotation).normalize();
-
-
-                    self.side = -Quat::mul_vec3a(self.quat_rotation.inverse(), Vec3A::X);
-                    self.up = Quat::mul_vec3a(self.quat_rotation.inverse(), Vec3A::Y);
-                    self.forward = -Quat::mul_vec3a(self.quat_rotation.inverse(), Vec3A::Z);
-                    */
                 }
 
                 let velocity = if button_pressed(&self.scancode_status, platform::Scancodes::SHIFT) {
@@ -625,12 +605,16 @@ impl rend3_framework::App for SceneViewer {
             }
             Event::RedrawRequested(_) => {
                 if self.set_camera == false {
-                    //Normal Camera
+                    // Normal Camera
                     self.view = Mat4::from_euler(glam::EulerRot::XYZ, -self.camera_pitch, -self.camera_yaw, 0.0);
                 } else if self.set_camera == true {
-                    //Spaceship Camera
-                    self.view = Mat4::from_mat3(self.matrix_rotation.into());
-                    //self.view = Mat4::from_quat(self.quat_rotation);
+                    // Spaceship Camera
+                    self.view = Mat4::from_cols(
+                        Vec3A::extend(self.matrix_rotation.y_axis, 0.),
+                        Vec3A::extend(self.matrix_rotation.z_axis, 0.),
+                        Vec3A::extend(self.matrix_rotation.x_axis, 0.),
+                        Vec4::W,
+                    );
                 }
 
                 self.view = self.view * Mat4::from_translation((-self.camera_location).into());
